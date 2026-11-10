@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giám sát Nhiệt độ & Độ ẩm - EMQX MQTT</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Thư viện MQTT.js hỗ trợ WebSockets trên trình duyệt -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-title">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+        </div>
+        <div>
+          <h1>DHT11 IoT Monitor</h1>
+          <p class="subtitle">Theo dõi Nhiệt độ & Độ ẩm thời gian thực qua EMQX Broker</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="status-indicator" id="statusIndicator"></span>
+        <span id="statusText" class="status-text">Đang ngắt kết nối</span>
+        <button id="toggleConfigBtn" class="btn btn-secondary btn-icon" title="Cài đặt kết nối">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Cấu hình</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Modal hoặc Khung Cài Đặt -->
+    <section class="config-panel" id="configPanel">
+      <div class="config-header">
+        <h2>Thông tin cấu hình MQTT</h2>
+        <span class="note-tag">Chú ý: Web Browser dùng giao thức WebSocket (WSS)</span>
+      </div>
+      <div class="config-grid">
+        <div class="form-group">
+          <label for="cfgHost">Broker Host:</label>
+          <input type="text" id="cfgHost" value="s1a21d21.ala.asia-southeast1.emqxsl.com">
+        </div>
+        <div class="form-group">
+          <label for="cfgPort">Port WebSocket (WSS):</label>
+          <input type="number" id="cfgPort" value="8084">
+          <small class="form-hint">8084 (WSS) cho trình duyệt. Port 8883 là TCP cho ESP8266.</small>
+        </div>
+        <div class="form-group">
+          <label for="cfgPath">Path:</label>
+          <input type="text" id="cfgPath" value="/mqtt">
+        </div>
+        <div class="form-group">
+          <label for="cfgTopic">Topic:</label>
+          <input type="text" id="cfgTopic" value="esp8266/dht11">
+        </div>
+        <div class="form-group">
+          <label for="cfgUser">Username:</label>
+          <input type="text" id="cfgUser" value="hanvantrieu">
+        </div>
+        <div class="form-group">
+          <label for="cfgPass">Password:</label>
+          <input type="password" id="cfgPass" value="Hanvantrieu">
+        </div>
+      </div>
+      <div class="config-actions">
+        <button id="btnConnect" class="btn btn-primary">Kết nối lại</button>
+        <button id="btnPublishTest" class="btn btn-secondary">Gửi thử dữ liệu (Test)</button>
+        <button id="btnDisconnect" class="btn btn-danger">Ngắt kết nối</button>
+      </div>
+    </section>
+
+    <!-- Thẻ cảm biến Sensor Cards -->
+    <div class="cards-grid">
+      <!-- Thẻ Nhiệt Độ -->
+      <div class="card temp-card">
+        <div class="card-top">
+          <div class="card-icon temp-icon">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+            </svg>
+          </div>
+          <div class="card-meta">
+            <span class="card-title">Nhiệt độ</span>
+            <span class="card-unit">DHT11 Sensor</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="value-display">
+            <span class="value-number" id="tempValue">--</span>
+            <span class="value-unit">°C</span>
+          </div>
+          <div class="status-badge" id="tempBadge">Chưa có dữ liệu</div>
+        </div>
+
+        <div class="card-footer">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill temp-bar" id="tempProgress" style="width: 0%;"></div>
+          </div>
+          <div class="range-labels">
+            <span>0°C</span>
+            <span>25°C</span>
+            <span>50°C</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thẻ Độ Ẩm -->
+      <div class="card humidity-card">
+        <div class="card-top">
+          <div class="card-icon hum-icon">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+            </svg>
+          </div>
+          <div class="card-meta">
+            <span class="card-title">Độ ẩm</span>
+            <span class="card-unit">DHT11 Sensor</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="value-display">
+            <span class="value-number" id="humValue">--</span>
+            <span class="value-unit">%</span>
+          </div>
+          <div class="status-badge" id="humBadge">Chưa có dữ liệu</div>
+        </div>
+
+        <div class="card-footer">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill hum-bar" id="humProgress" style="width: 0%;"></div>
+          </div>
+          <div class="range-labels">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thông tin thời gian cập nhật & Message Logs -->
+    <div class="card log-card">
+      <div class="log-header">
+        <div class="log-title-wrap">
+          <h3>Nhật ký tin nhắn nhận được (Logs)</h3>
+          <span class="last-updated" id="lastUpdated">Cập nhật lần cuối: Chưa nhận tin</span>
+        </div>
+        <div class="log-actions">
+          <button id="btnClearLog" class="btn btn-sm btn-outline">Xóa Log</button>
+        </div>
+      </div>
+      <div class="log-content" id="logContent">
+        <div class="log-item info">Hệ thống sẵn sàng. Nhấn kết nối hoặc đợi dữ liệu từ topic <code>esp8266/dht11</code>...</div>
+      </div>
+    </div>
+
+    <!-- Chân trang -->
+    <footer class="footer">
+      <span>MQTT Topic: <strong id="lblTopic">esp8266/dht11</strong></span> • 
+      <span>Định dạng JSON: <code>{"temperature":"..", "humidity":".."}</code></span>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
